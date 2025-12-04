@@ -1,0 +1,117 @@
+<script>
+  let roots = [];
+  let worms = [];
+  let insects = [];
+  let soil;
+  let growthActive = true;
+  let MAX_DEPTH = window.innerHeight * 0.85; // stop before bottom
+
+  function setup() {
+    createCanvas(windowWidth, windowHeight);
+    soil = createGraphics(width, height);
+    soil.background(15, 35, 20);
+    strokeCap(ROUND);
+
+    roots.push(new Root(width / 2, 0, PI / 2, 0));
+
+    for (let i = 0; i < 8; i++) {
+      worms.push(new Worm(random(width * 0.3, width * 0.7), random(height * 0.3, height * 0.8)));
+    }
+
+    for (let i = 0; i < 15; i++) {
+      insects.push(new Insect(random(width * 0.3, width * 0.7), random(height * 0.2, height * 0.9)));
+    }
+  }
+
+  function draw() {
+    image(soil, 0, 0);
+
+    if (growthActive) {
+      for (let i = roots.length - 1; i >= 0; i--) {
+        roots[i].grow(soil);
+
+        // ❗ Stop growth once roots hit depth limit
+        if (roots[i].y > MAX_DEPTH) {
+          growthActive = false;
+          console.log("🌱 Growth stopped - depth limit reached");
+        }
+
+        if (!roots[i].alive) roots.splice(i, 1);
+      }
+
+      // ❗ If no roots are alive, stop growth
+      if (roots.length === 0) {
+        growthActive = false;
+      }
+    }
+
+    // 🪱 Worms and 🐜 insects still move even after root stops
+    for (let w of worms) {
+      w.move();
+      w.display();
+    }
+
+    for (let ins of insects) {
+      ins.move();
+      ins.display();
+    }
+
+    // ❗ If growth is finished, stop draw() loop
+    if (!growthActive) {
+      noLoop();
+      console.log("🛑 Animation stopped.");
+    }
+  }
+
+  // 🌱 Root Class (small tweak: prevent extreme horizontal spreading)
+  class Root {
+    constructor(x, y, angle, depth) {
+      this.x = x;
+      this.y = y;
+      this.angle = angle;
+      this.depth = depth;
+      this.life = int(random(100, 250));
+      this.alive = true;
+    }
+
+    grow(layer) {
+      if (!this.alive) return;
+
+      let step = random(2, 5);
+
+      // ❗ Limit random angle to reduce sideways spreading
+      this.angle += random(-0.1, 0.1);
+
+      let newX = this.x + cos(this.angle) * step;
+      let newY = this.y + sin(this.angle) * step;
+
+      // ❗ Keep roots mostly downward (stop steep sideways)
+      if (abs(this.angle) > PI / 3) {
+        this.angle = PI / 2 + random(-0.2, 0.2);
+      }
+
+      layer.stroke(255, 255, 255, 220);
+      let w = map(this.depth, 0, 6, 6, 1.5);
+      layer.strokeWeight(max(1, w));
+      layer.line(this.x, this.y, newX, newY);
+
+      this.x = newX;
+      this.y = newY;
+      this.life--;
+
+      // ❗ Branch LESS as it gets deeper
+      let branchProb = map(this.y, 0, MAX_DEPTH, 0.04, 0.005);
+      if (random() < branchProb && this.depth < 6) {
+        roots.push(new Root(this.x, this.y, this.angle + random(-0.6, 0.6), this.depth + 1));
+      }
+
+      // Stop if reached depth limit
+      if (this.y > MAX_DEPTH || this.life <= 0) {
+        this.alive = false;
+      }
+    }
+  }
+
+  // 🪱 Worms — unchanged
+  // 🐜 Insects — unchanged
+</script>

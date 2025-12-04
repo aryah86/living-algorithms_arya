@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Network Anxiety Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: Arial, sans-serif;
+        }
+        
+        canvas {
+            display: block;
+            background: #000;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #555;
+        }
+        
+        .controls h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+        }
+        
+        .controls button {
+            margin: 5px;
+            padding: 10px 20px;
+            background: #333;
+            color: #fff;
+            border: 1px solid #666;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .controls button:hover {
+            background: #555;
+        }
+        
+        .controls button.active {
+            background: #ff6b6b;
+            border-color: #ff6b6b;
+        }
+        
+        .status {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <h3>Anxiety Propagation</h3>
+        <button id="startAnxiety">Start Anxiety</button>
+        <button id="reset">Reset Network</button>
+        <div class="status" id="status">Click "Start Anxiety" to begin</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        let nodes = [];
+        let connections = [];
+        let anxietyStarted = false;
+        
+        class Node {
+            constructor(x, y, index) {
+                this.x = x;
+                this.y = y;
+                this.index = index;
+                this.baseRadius = Math.random() * 2 + 3;
+                this.radius = this.baseRadius;
+                this.anxietyLevel = 0;
+                this.activated = false;
+                this.pulsePhase = Math.random() * Math.PI * 2;
+                this.pulseSpeed = 0.02;
+                this.branches = [];
+                this.generateBranches();
+            }
+            
+            generateBranches() {
+                const branchCount = Math.floor(Math.random() * 2) + 3;
+                for (let i = 0; i < branchCount; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const mainLength = Math.random() * 40 + 30;
+                    
+                    const branch = {
+                        angle: angle,
+                        segments: [],
+                        subBranches: []
+                    };
+                    
+                    // Create main branch segments
+                    const segmentCount = Math.floor(mainLength / 4);
+                    let currentAngle = angle;
+                    let currentLength = 0;
+                    
+                    for (let j = 0; j < segmentCount; j++) {
+                        currentAngle += (Math.random() - 0.5) * 0.2;
+                        const segmentLength = Math.random() * 5 + 3;
+                        currentLength += segmentLength;
+                        
+                        branch.segments.push({
+                            angle: currentAngle,
+                            length: segmentLength,
+                            totalLength: currentLength
+                        });
+                        
+                        // Add sub-branches less frequently
+                        if (Math.random() < 0.15 && j > 2) {
+                            const subAngle = currentAngle + (Math.random() - 0.5) * 1.2;
+                            const subLength = Math.random() * 15 + 8;
+                            branch.subBranches.push({
+                                startSegment: j,
+                                angle: subAngle,
+                                length: subLength
+                            });
+                        }
+                    }
+                    
+                    this.branches.push(branch);
+                }
+            }
+            
+            startAnxiety() {
+                this.anxietyLevel = 1;
+                this.activated = true;
+            }
+            
+            receiveAnxiety(amount) {
+                if (!this.activated && amount > 0.1) {
+                    this.activated = true;
+                }
+                this.anxietyLevel = Math.min(1, this.anxietyLevel + amount);
+            }
+            
+            update() {
+                if (this.activated) {
+                    this.pulsePhase += this.pulseSpeed * (1 + this.anxietyLevel * 2);
+                    const pulse = Math.sin(this.pulsePhase);
+                    this.radius = this.baseRadius + pulse * (1 + this.anxietyLevel);
+                }
+            }
+            
+            draw() {
+                const brightness = this.anxietyLevel;
+                
+                // Draw branches
+                this.branches.forEach(branch => {
+                    let currentX = this.x;
+                    let currentY = this.y;
+                    
+                    // Draw main branch
+                    branch.segments.forEach((segment, idx) => {
+                        const nextX = currentX + Math.cos(segment.angle) * segment.length;
+                        const nextY = currentY + Math.sin(segment.angle) * segment.length;
+                        
+                        const progress = segment.totalLength / 100;
+                        const opacity = (1 - progress) * (0.6 + brightness * 0.4);
+                        
+                        ctx.strokeStyle = brightness > 0.5 
+                            ? `rgba(255, ${150 - brightness * 50}, ${100 - brightness * 50}, ${opacity})`
+                            : `rgba(${100 + brightness * 100}, ${150 + brightness * 100}, 255, ${opacity})`;
+                        
+                        ctx.lineWidth = (1 - progress) * (1.2 + brightness * 0.4);
+                        ctx.beginPath();
+                        ctx.moveTo(currentX, currentY);
+                        ctx.lineTo(nextX, nextY);
+                        ctx.stroke();
+                        
+                        currentX = nextX;
+                        currentY = nextY;
+                    });
+                    
+                    // Draw sub-branches
+                    branch.subBranches.forEach(subBranch => {
+                        if (subBranch.startSegment < branch.segments.length) {
+                            let subX = this.x;
+                            let subY = this.y;
+                            
+                            for (let i = 0; i <= subBranch.startSegment; i++) {
+                                const seg = branch.segments[i];
+                                subX += Math.cos(seg.angle) * seg.length;
+                                subY += Math.sin(seg.angle) * seg.length;
+                            }
+                            
+                            const endX = subX + Math.cos(subBranch.angle) * subBranch.length;
+                            const endY = subY + Math.sin(subBranch.angle) * subBranch.length;
+                            
+                            const gradient = ctx.createLinearGradient(subX, subY, endX, endY);
+                            gradient.addColorStop(0, brightness > 0.5 
+                                ? `rgba(255, 180, 120, ${0.3 + brightness * 0.2})`
+                                : `rgba(100, 180, 255, ${0.3 + brightness * 0.2})`);
+                            gradient.addColorStop(1, 'rgba(100, 180, 255, 0)');
+                            
+                            ctx.strokeStyle = gradient;
+                            ctx.lineWidth = 1;
+                            ctx.beginPath();
+                            ctx.moveTo(subX, subY);
+                            ctx.lineTo(endX, endY);
+                            ctx.stroke();
+                        }
+                    });
+                });
+                
+                // Draw glow around cell body
+                const glowSize = this.radius * 3;
+                const glowGradient = ctx.createRadialGradient(
+                    this.x, this.y, 0,
+                    this.x, this.y, glowSize
+                );
+                
+                if (brightness > 0.7) {
+                    glowGradient.addColorStop(0, `rgba(255, 150, 100, ${0.8 * brightness})`);
+                    glowGradient.addColorStop(0.5, `rgba(255, 100, 80, ${0.4 * brightness})`);
+                    glowGradient.addColorStop(1, 'rgba(255, 80, 50, 0)');
+                } else {
+                    glowGradient.addColorStop(0, `rgba(100, 200, 255, ${0.6 + brightness * 0.3})`);
+                    glowGradient.addColorStop(0.5, `rgba(100, 180, 255, ${0.3 + brightness * 0.2})`);
+                    glowGradient.addColorStop(1, 'rgba(100, 180, 255, 0)');
+                }
+                
+                ctx.fillStyle = glowGradient;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, glowSize, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw cell body
+                ctx.fillStyle = brightness > 0.5 
+                    ? `rgba(255, ${180 - brightness * 80}, ${150 - brightness * 100}, ${0.9})`
+                    : `rgba(${150 + brightness * 105}, ${200 + brightness * 55}, 255, ${0.8 + brightness * 0.2})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Bright center
+                ctx.fillStyle = brightness > 0.5 
+                    ? 'rgba(255, 255, 200, 1)' 
+                    : 'rgba(200, 230, 255, 1)';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 0.6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        class Connection {
+            constructor(node1, node2) {
+                this.node1 = node1;
+                this.node2 = node2;
+                this.pulses = [];
+            }
+            
+            update() {
+                if (this.node1.activated && this.node2.anxietyLevel < 1) {
+                    if (Math.random() < 0.04 * this.node1.anxietyLevel) {
+                        this.pulses.push({ progress: 0, fromNode1: true });
+                    }
+                }
+                
+                if (this.node2.activated && this.node1.anxietyLevel < 1) {
+                    if (Math.random() < 0.04 * this.node2.anxietyLevel) {
+                        this.pulses.push({ progress: 0, fromNode1: false });
+                    }
+                }
+                
+                this.pulses = this.pulses.filter(pulse => {
+                    pulse.progress += 0.025;
+                    
+                    if (pulse.progress >= 1) {
+                        const targetNode = pulse.fromNode1 ? this.node2 : this.node1;
+                        const sourceNode = pulse.fromNode1 ? this.node1 : this.node2;
+                        targetNode.receiveAnxiety(sourceNode.anxietyLevel * 0.3);
+                        return false;
+                    }
+                    return true;
+                });
+            }
+            
+            draw() {
+                const dx = this.node2.x - this.node1.x;
+                const dy = this.node2.y - this.node1.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                const avgAnxiety = (this.node1.anxietyLevel + this.node2.anxietyLevel) / 2;
+                const opacity = (1 - distance / 250) * (0.15 + avgAnxiety * 0.25);
+                
+                ctx.strokeStyle = avgAnxiety > 0.5 
+                    ? `rgba(255, 180, 120, ${opacity})`
+                    : `rgba(100, 180, 255, ${opacity})`;
+                
+                ctx.lineWidth = 0.6 + avgAnxiety * 0.5;
+                ctx.beginPath();
+                ctx.moveTo(this.node1.x, this.node1.y);
+                ctx.lineTo(this.node2.x, this.node2.y);
+                ctx.stroke();
+                
+                // Draw pulses
+                this.pulses.forEach(pulse => {
+                    const startNode = pulse.fromNode1 ? this.node1 : this.node2;
+                    const endNode = pulse.fromNode1 ? this.node2 : this.node1;
+                    
+                    const x = startNode.x + (endNode.x - startNode.x) * pulse.progress;
+                    const y = startNode.y + (endNode.y - startNode.y) * pulse.progress;
+                    
+                    const pulseGradient = ctx.createRadialGradient(x, y, 0, x, y, 8);
+                    pulseGradient.addColorStop(0, 'rgba(255, 255, 200, 1)');
+                    pulseGradient.addColorStop(0.4, 'rgba(255, 200, 100, 0.8)');
+                    pulseGradient.addColorStop(1, 'rgba(255, 200, 100, 0)');
+                    
+                    ctx.fillStyle = pulseGradient;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+        }
+        
+        function initNetwork() {
+            nodes = [];
+            connections = [];
+            anxietyStarted = false;
+            
+            const nodeCount = 60;
+            
+            for (let i = 0; i < nodeCount; i++) {
+                nodes.push(new Node(
+                    Math.random() * canvas.width,
+                    Math.random() * canvas.height,
+                    i
+                ));
+            }
+            
+            nodes.forEach((node, i) => {
+                nodes.forEach((otherNode, j) => {
+                    if (i < j) {
+                        const dx = otherNode.x - node.x;
+                        const dy = otherNode.y - node.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < 250) {
+                            connections.push(new Connection(node, otherNode));
+                        }
+                    }
+                });
+            });
+            
+            document.getElementById('status').textContent = 'Network ready. Click "Start Anxiety" to begin.';
+        }
+        
+        function startAnxiety() {
+            if (anxietyStarted) return;
+            
+            anxietyStarted = true;
+            const anxietySource = nodes[Math.floor(Math.random() * nodes.length)];
+            anxietySource.startAnxiety();
+            
+            document.getElementById('startAnxiety').classList.add('active');
+            document.getElementById('startAnxiety').textContent = 'Anxiety Spreading...';
+            document.getElementById('status').textContent = 'Anxiety spreading through the network...';
+        }
+        
+        function animate() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            connections.forEach(conn => {
+                conn.update();
+                conn.draw();
+            });
+            
+            nodes.forEach(node => {
+                node.update();
+                node.draw();
+            });
+            
+            if (anxietyStarted) {
+                const allAnxious = nodes.every(node => node.anxietyLevel > 0.8);
+                if (allAnxious) {
+                    document.getElementById('status').textContent = 'Complete network anxiety! Click "Reset" to try again.';
+                }
+            }
+            
+            requestAnimationFrame(animate);
+        }
+        
+        document.getElementById('startAnxiety').addEventListener('click', startAnxiety);
+        
+        document.getElementById('reset').addEventListener('click', () => {
+            document.getElementById('startAnxiety').classList.remove('active');
+            document.getElementById('startAnxiety').textContent = 'Start Anxiety';
+            initNetwork();
+        });
+        
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            initNetwork();
+        });
+        
+        initNetwork();
+        animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Spider Web Building Simulation</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+<body style="margin:0; overflow:hidden; background:black;">
+<script>
+
+let radialLines = 22;    
+let spiralRings = 22;    
+let webPoints = [];
+let buildStep = 0;      
+let maxSteps;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  angleMode(DEGREES);
+  calculateWebPoints();
+  maxSteps = radialLines + radialLines * spiralRings;
+  background(0);
+}
+
+function draw() {
+  background(0, 20);
+
+  drawRadials();
+  drawSpiralRings();
+
+  if (buildStep < maxSteps) buildStep += 0.5; // controls build speed
+}
+
+// 🕸️ Pre-calculate all web points
+function calculateWebPoints() {
+  let centerX = width / 2;
+  let centerY = height / 2;
+  let maxRadius = min(width, height) * 0.45;
+
+  for (let r = 1; r <= spiralRings; r++) {
+    let ring = [];
+    let radius = (maxRadius * r) / spiralRings;
+    for (let a = 0; a < 360; a += 360 / radialLines) {
+      // Little randomness for organic look
+      let x = centerX + cos(a) * radius + random(-3, 3);
+      let y = centerY + sin(a) * radius + random(-3, 3);
+      ring.push({ x, y });
+    }
+    webPoints.push(ring);
+  }
+}
+
+// ✴️ Draw radial lines gradually (anchor structure)
+function drawRadials() {
+  let centerX = width / 2;
+  let centerY = height / 2;
+
+  stroke(255, 255, 255, 180);
+  strokeWeight(1);
+
+  for (let i = 0; i < min(buildStep, radialLines); i++) {
+    let angle = (360 / radialLines) * i;
+    let x2 = centerX + cos(angle) * min(width, height) * 0.45;
+    let y2 = centerY + sin(angle) * min(width, height) * 0.45;
+    line(centerX, centerY, x2, y2);
+  }
+}
+
+// 🌀 Draw spiral threads gradually
+function drawSpiralRings() {
+  stroke(255, 255, 255, 150);
+  strokeWeight(0.7);
+  noFill();
+
+  let availableSteps = floor(buildStep - radialLines);
+
+  for (let r = 0; r < spiralRings; r++) {
+    beginShape();
+    for (let p = 0; p < radialLines; p++) {
+      let idx = r * radialLines + p;
+      if (idx < availableSteps) {
+        vertex(webPoints[r][p].x, webPoints[r][p].y);
+      }
+    }
+    endShape(CLOSE);
+  }
+}
+
+// 🔄 Responsive Full Screen
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+
+</script>
+</body>
+</html>
+
+
+

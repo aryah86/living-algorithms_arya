@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Red Root Growth</title>
+
+  <!-- p5.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: black;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+<script>
+  let roots = [];
+
+  function setup() {
+    createCanvas(windowWidth, windowHeight);
+    background(0); // black background
+
+    // Start with one main root from the top middle
+    roots.push(new Root(width / 2, 0, PI / 2, 0)); // angle PI/2 = going down
+    stroke(255, 0, 0); // red
+    strokeCap(ROUND);
+  }
+
+  function draw() {
+    // Draw all roots each frame
+    for (let i = roots.length - 1; i >= 0; i--) {
+      let r = roots[i];
+      r.grow();
+
+      // If this root is "dead", remove it
+      if (!r.alive) {
+        roots.splice(i, 1);
+      }
+    }
+
+    // If no roots left, stop drawing
+    if (roots.length === 0) {
+      noLoop();
+    }
+  }
+
+  class Root {
+    constructor(x, y, angle, depth) {
+      this.x = x;
+      this.y = y;
+      this.angle = angle;
+      this.depth = depth; // how many times it has branched
+      this.life = int(random(80, 200)); // how long this segment lives
+      this.alive = true;
+    }
+
+    grow() {
+      if (!this.alive) return;
+
+      // step size and slight randomness in direction
+      let step = random(2, 5);
+      this.angle += random(-0.2, 0.2); // wiggle a bit
+
+      // move in the direction of the angle
+      let newX = this.x + cos(this.angle) * step;
+      let newY = this.y + sin(this.angle) * step;
+
+      // thicker at smaller depth, thinner for branches
+      let w = map(this.depth, 0, 6, 5, 1);
+      strokeWeight(max(1, w));
+
+      // draw the root segment
+      line(this.x, this.y, newX, newY);
+
+      // update position
+      this.x = newX;
+      this.y = newY;
+      this.life--;
+
+      // kill root if out of screen or life over
+      if (this.life <= 0 || this.y > height + 10 || this.x < -10 || this.x > width + 10) {
+        this.alive = false;
+        return;
+      }
+
+      // Chance to branch into a new root
+      if (random() < 0.03 && this.depth < 6) {
+        let branchAngle = this.angle + random(-0.8, 0.8);
+        roots.push(new Root(this.x, this.y, branchAngle, this.depth + 1));
+      }
+    }
+  }
+
+  function windowResized() {
+    resizeCanvas(windowWidth, windowHeight);
+    background(0); // keep black background on resize
+  }
+</script>
+</body>
+</html>
