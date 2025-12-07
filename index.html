@@ -1,16 +1,144 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Living Algorithms – Projects</title>
+<meta charset="UTF-8">
+<title>My Generative Simulations</title>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        background: radial-gradient(circle at center, #0d0f25, #050414);
+        font-family: "Poppins", sans-serif;
+        color: #fff;
+        overflow-x: hidden;
+    }
+
+    h1 {
+        text-align: center;
+        padding-top: 40px;
+        font-size: 3rem;
+        letter-spacing: 2px;
+        color: #f4d9ff;
+        text-shadow: 0 0 12px #c28dff;
+    }
+
+    .container {
+        width: 90%;
+        margin: 50px auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 30px;
+    }
+
+    .card {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 14px;
+        padding: 20px;
+        backdrop-filter: blur(6px);
+        box-shadow: 0 0 20px rgba(200, 100, 255, 0.15);
+        transition: 0.3s ease;
+        cursor: pointer;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .card:hover {
+        transform: translateY(-8px) scale(1.03);
+        box-shadow: 0 0 25px rgba(220, 160, 255, 0.35);
+    }
+
+    .card-title {
+        font-size: 1.5rem;
+        margin-bottom: 10px;
+        color: #ffd6ff;
+    }
+
+    .card-desc {
+        font-size: 0.95rem;
+        line-height: 1.4rem;
+        color: #e9d7ff;
+    }
+</style>
 </head>
 <body>
-    <h1>My interactive projects</h1>
-    <ul>
-        <li><a href="boids.html">Boids Simulation</a></li>
-        <li><a href="brain3.html">Brain Simulation</a></li>
-        <li><a href="root.html">Root Growth</a></li>
-        <li><a href="roots_worms_new.html">Root + Worms</a></li>
-        <li><a href="weave.html">Weaving Simulation</a></li>
-    </ul>
+
+<h1>My Living Simulations</h1>
+
+<div class="container">
+
+    <!-- ROOTS -->
+    <div class="card" onclick="location.href='root.html'">
+        <div class="card-title">Root Growing</div>
+        <div class="card-desc">
+            A simulation showing how roots grow, branch, and explore the soil beneath.
+        </div>
+    </div>
+
+    <!-- ROOT + WORMS -->
+    <div class="card" onclick="location.href='root_worm.html'">
+        <div class="card-title">Root Ecosystem</div>
+        <div class="card-desc">
+            Roots growing in an underground world filled with moving worms and soil life.
+        </div>
+    </div>
+
+    <!-- ANTS -->
+    <div class="card" onclick="location.href='ants3.html'">
+        <div class="card-title">Ant Colony</div>
+        <div class="card-desc">
+            Ants navigating a landscape, finding food, avoiding obstacles, and working together.
+        </div>
+    </div>
+
+    <!-- BOIDS -->
+    <div class="card" onclick="location.href='boids.html'">
+        <div class="card-title">Flocking Birds</div>
+        <div class="card-desc">
+            A natural simulation of birds flocking together using behavioral rules of alignment.
+        </div>
+    </div>
+
+    <!-- FISH -->
+    <div class="card" onclick="location.href='fishmoving.html'">
+        <div class="card-title">Fish Pond</div>
+        <div class="card-desc">
+            Fish swimming gracefully in a pond, forming groups and moving as one.
+        </div>
+    </div>
+
+    <!-- WEATHER -->
+    <div class="card" onclick="location.href='weather.html'">
+        <div class="card-title">Planet Weather</div>
+        <div class="card-desc">
+            Moving patterns of clouds, storms, and temperature shifts across a miniature world.
+        </div>
+    </div>
+
+    <!-- COBWEB -->
+    <div class="card" onclick="location.href='cobwebs.html'">
+        <div class="card-title">Cobweb Formation</div>
+        <div class="card-desc">
+            A dynamic web forming strand by strand, creating complex spiderweb geometry.
+        </div>
+    </div>
+
+    <!-- WEAVE -->
+    <div class="card" onclick="location.href='weave.html'">
+        <div class="card-title">Spider Weaving</div>
+        <div class="card-desc">
+            Watch a spider weave a perfect circular web with structure and rhythm.
+        </div>
+    </div>
+
+    <!-- BRAIN -->
+    <div class="card" onclick="location.href='brain3.html'">
+        <div class="card-title">Anxiety & the Brain</div>
+        <div class="card-desc">
+            A generative visualization showing how anxiety disrupts neural signals in the brain.
+        </div>
+    </div>
+
+</div>
+
 </body>
 </html>
+
