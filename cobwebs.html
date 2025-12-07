@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fine Cobweb Mesh</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #3a4a3d 0%, #2a3a2d 100%);
+            overflow: hidden;
+            font-family: 'Georgia', serif;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 2.5em;
+            letter-spacing: 2px;
+        }
+
+        p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: #fff;
+            background: rgba(0,0,0,0.6);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+
+        button {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: #fff;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: rgba(255,255,255,0.3);
+            transform: scale(1.05);
+        }
+
+        .status {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h1>Fine Silk Cobwebs</h1>
+        <p>Delicate mesh of silk threads</p>
+    </div>
+
+    <div class="controls">
+        <button onclick="startNewWeb()">New Web</button>
+        <button onclick="toggleSpeed()">Speed: <span id="speedText">Normal</span></button>
+        <button onclick="clearWeb()">Clear</button>
+        <div class="status" id="status">Weaving...</div>
+    </div>
+
+    <canvas id="cobwebCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('cobwebCanvas');
+        const ctx = canvas.getContext('2d');
+        let speed = 1;
+        let isWeaving = true;
+        let nodes = [];
+        let threads = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        class Spider {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.targetX = x;
+                this.targetY = y;
+                this.size = 5;
+                this.legLength = 10;
+                this.legAngle = 0;
+            }
+
+            moveTo(x, y) {
+                this.targetX = x;
+                this.targetY = y;
+            }
+
+            update() {
+                const dx = this.targetX - this.x;
+                const dy = this.targetY - this.y;
+                this.x += dx * 0.08;
+                this.y += dy * 0.08;
+                this.legAngle += 0.25;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i * Math.PI / 4) + Math.sin(this.legAngle + i) * 0.2;
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(Math.cos(angle) * this.legLength, Math.sin(angle) * this.legLength);
+                    ctx.strokeStyle = 'rgba(40, 40, 40, 0.8)';
+                    ctx.lineWidth = 1.2;
+                    ctx.stroke();
+                }
+
+                ctx.beginPath();
+                ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(35, 35, 35, 0.9)';
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        class WebNode {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.originalX = x;
+                this.originalY = y;
+                this.connections = [];
+                this.offset = Math.random() * Math.PI * 2;
+            }
+
+            update(time) {
+                // Very subtle movement
+                const sway1 = Math.sin(time * 0.0008 + this.offset) * 1;
+                const sway2 = Math.cos(time * 0.001 + this.offset * 1.5) * 0.8;
+                this.x = this.originalX + sway1;
+                this.y = this.originalY + sway2;
+            }
+        }
+
+        class FineThread {
+            constructor(node1, node2) {
+                this.node1 = node1;
+                this.node2 = node2;
+                this.opacity = Math.random() * 0.15 + 0.15;
+                this.thickness = Math.random() * 0.25 + 0.15;
+                this.segments = this.createSegments();
+            }
+
+            createSegments() {
+                // Create fine, slightly curved path between two nodes
+                const segments = [];
+                const numPoints = 5;
+                
+                for (let i = 0; i <= numPoints; i++) {
+                    const t = i / numPoints;
+                    const x = this.node1.x + (this.node2.x - this.node1.x) * t;
+                    const y = this.node1.y + (this.node2.y - this.node1.y) * t;
+                    
+                    // Add subtle curves - not big loops, just gentle bends
+                    const perpX = -(this.node2.y - this.node1.y);
+                    const perpY = (this.node2.x - this.node1.x);
+                    const length = Math.sqrt(perpX * perpX + perpY * perpY);
+                    
+                    if (length > 0) {
+                        const normalX = perpX / length;
+                        const normalY = perpY / length;
+                        
+                        // Small sine wave for gentle curve
+                        const curve = Math.sin(t * Math.PI) * (Math.random() * 3 + 1);
+                        
+                        segments.push({
+                            x: x + normalX * curve,
+                            y: y + normalY * curve,
+                            baseX: x + normalX * curve,
+                            baseY: y + normalY * curve,
+                            offset: Math.random() * Math.PI * 2
+                        });
+                    } else {
+                        segments.push({x, y, baseX: x, baseY: y, offset: 0});
+                    }
+                }
+                
+                return segments;
+            }
+
+            update(time) {
+                // Update segment positions with very subtle movement
+                this.segments.forEach((seg, i) => {
+                    if (i > 0 && i < this.segments.length - 1) {
+                        const sway = Math.sin(time * 0.001 + seg.offset) * 0.5;
+                        seg.x = seg.baseX + sway;
+                        seg.y = seg.baseY + Math.cos(time * 0.0012 + seg.offset) * 0.4;
+                    } else {
+                        // Endpoints follow nodes
+                        if (i === 0) {
+                            seg.x = this.node1.x;
+                            seg.y = this.node1.y;
+                        } else {
+                            seg.x = this.node2.x;
+                            seg.y = this.node2.y;
+                        }
+                    }
+                });
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.moveTo(this.segments[0].x, this.segments[0].y);
+
+                // Draw smooth curve through segments
+                for (let i = 1; i < this.segments.length - 1; i++) {
+                    const xc = (this.segments[i].x + this.segments[i + 1].x) / 2;
+                    const yc = (this.segments[i].y + this.segments[i + 1].y) / 2;
+                    ctx.quadraticCurveTo(this.segments[i].x, this.segments[i].y, xc, yc);
+                }
+
+                const last = this.segments[this.segments.length - 1];
+                ctx.lineTo(last.x, last.y);
+
+                ctx.strokeStyle = `rgba(235, 235, 245, ${this.opacity})`;
+                ctx.lineWidth = this.thickness;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+            }
+        }
+
+        let spider;
+        let threadCount = 0;
+        let maxThreads = 800;
+
+        function startNewWeb() {
+            nodes = [];
+            threads = [];
+            threadCount = 0;
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            spider = new Spider(centerX, centerY);
+
+            // Create a mesh of nodes
+            const radius = Math.min(canvas.width, canvas.height) * 0.35;
+            const gridSize = 25;
+            
+            // Create nodes in a rough grid with randomness
+            for (let i = 0; i < 15; i++) {
+                for (let j = 0; j < 15; j++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = Math.random() * radius;
+                    const x = centerX + Math.cos(angle) * dist + (Math.random() - 0.5) * gridSize;
+                    const y = centerY + Math.sin(angle) * dist + (Math.random() - 0.5) * gridSize;
+                    nodes.push(new WebNode(x, y));
+                }
+            }
+
+            isWeaving = true;
+            document.getElementById('status').textContent = 'Weaving...';
+        }
+
+        function clearWeb() {
+            nodes = [];
+            threads = [];
+            threadCount = 0;
+            ctx.fillStyle = 'rgba(42, 58, 45, 1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function toggleSpeed() {
+            speed = speed === 1 ? 4 : speed === 4 ? 8 : 1;
+            document.getElementById('speedText').textContent = 
+                speed === 1 ? 'Normal' : speed === 4 ? 'Fast' : 'Very Fast';
+        }
+
+        let frameCount = 0;
+
+        function animate(time) {
+            frameCount++;
+
+            // Very slight fade
+            if (frameCount % 60 === 0) {
+                ctx.fillStyle = 'rgba(42, 58, 45, 0.003)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // Create new threads by connecting nearby nodes
+            if (isWeaving && threadCount < maxThreads) {
+                const threadsPerFrame = Math.floor(speed * 2);
+                
+                for (let i = 0; i < threadsPerFrame; i++) {
+                    if (threadCount >= maxThreads) break;
+                    
+                    // Pick a random node
+                    const node1 = nodes[Math.floor(Math.random() * nodes.length)];
+                    
+                    // Find nearby nodes
+                    const nearby = nodes.filter(n => {
+                        if (n === node1) return false;
+                        const dist = Math.sqrt(
+                            Math.pow(n.x - node1.x, 2) + Math.pow(n.y - node1.y, 2)
+                        );
+                        return dist < 80 && dist > 20;
+                    });
+
+                    if (nearby.length > 0) {
+                        // Connect to a nearby node
+                        const node2 = nearby[Math.floor(Math.random() * nearby.length)];
+                        
+                        // Check if connection already exists
+                        const exists = threads.some(t => 
+                            (t.node1 === node1 && t.node2 === node2) ||
+                            (t.node1 === node2 && t.node2 === node1)
+                        );
+
+                        if (!exists) {
+                            threads.push(new FineThread(node1, node2));
+                            threadCount++;
+                            
+                            // Move spider occasionally
+                            if (Math.random() > 0.9) {
+                                spider.moveTo(node2.x, node2.y);
+                            }
+                        }
+                    }
+                }
+
+                if (threadCount >= maxThreads) {
+                    isWeaving = false;
+                    document.getElementById('status').textContent = 
+                        `Complete! ${threadCount} silk threads`;
+                }
+            }
+
+            // Update nodes
+            nodes.forEach(node => node.update(time));
+
+            // Update and draw threads
+            threads.forEach(thread => {
+                thread.update(time);
+                thread.draw();
+            });
+
+            // Draw spider
+            if (spider) {
+                spider.update();
+                spider.draw();
+            }
+
+            // Update status
+            if (isWeaving && frameCount % 20 === 0) {
+                document.getElementById('status').textContent = 
+                    `Weaving... ${threadCount}/${maxThreads}`;
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        ctx.fillStyle = 'rgba(42, 58, 45, 1)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        startNewWeb();
+        animate(0);
+    </script>
+</body>
+</html>

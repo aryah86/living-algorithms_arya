@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>Ant Foraging With Solid Pale Yellow Obstacles</title>
+<style>
+    body { margin:0; overflow:hidden; background:#111; }
+    canvas { display:block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<script>
+// ===============================
+// CANVAS SETUP
+// ===============================
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+canvas.width = innerWidth;
+canvas.height = innerHeight;
+
+// Resize handler
+addEventListener("resize", () => {
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
+});
+
+// ===============================
+// WORLD VARIABLES
+// ===============================
+const ANT_COUNT = 150;
+const ants = [];
+const foods = [];
+const pheromone = [];
+
+const gridSize = 10;
+const cols = Math.ceil(canvas.width / gridSize);
+const rows = Math.ceil(canvas.height / gridSize);
+
+// Build pheromone grid
+for (let x = 0; x < cols; x++) {
+    pheromone[x] = [];
+    for (let y = 0; y < rows; y++) pheromone[x][y] = 0;
+}
+
+// ===============================
+// CURVED WALLS — Pale Yellow
+// ===============================
+const walls = [];
+
+function createWalls() {
+    const Y = "#e8e3a3";  // pale grayish-yellow
+
+    walls.push({
+        cx: canvas.width * 0.35,
+        cy: canvas.height * 0.28,
+        radius: 140,
+        thickness: 30,
+        start: 0.2 * Math.PI,
+        end: 1.35 * Math.PI,
+        color: Y
+    });
+
+    walls.push({
+        cx: canvas.width * 0.75,
+        cy: canvas.height * 0.40,
+        radius: 170,
+        thickness: 30,
+        start: 0.3 * Math.PI,
+        end: 1.6 * Math.PI,
+        color: Y
+    });
+
+    walls.push({
+        cx: canvas.width * 0.22,
+        cy: canvas.height * 0.72,
+        radius: 160,
+        thickness: 30,
+        start: -0.3 * Math.PI,
+        end: 1.1 * Math.PI,
+        color: Y
+    });
+
+    walls.push({
+        cx: canvas.width * 0.60,
+        cy: canvas.height * 0.82,
+        radius: 150,
+        thickness: 30,
+        start: -0.6 * Math.PI,
+        end: 0.9 * Math.PI,
+        color: Y
+    });
+}
+
+createWalls();
+
+// ===============================
+// FOOD (WHITE SUGAR)
+// ===============================
+function spawnFoodPile(x, y, count = 25) {
+    for (let i = 0; i < count; i++) {
+        foods.push({
+            x: x + (Math.random() * 30 - 15),
+            y: y + (Math.random() * 30 - 15),
+            size: 3 + Math.random() * 1.5,
+            color: "#f5f5f5"
+        });
+    }
+}
+
+// initial food piles
+spawnFoodPile(canvas.width * 0.15, canvas.height * 0.25);
+spawnFoodPile(canvas.width * 0.78, canvas.height * 0.55);
+spawnFoodPile(canvas.width * 0.45, canvas.height * 0.85);
+
+// click to add food
+canvas.addEventListener("click", e => {
+    spawnFoodPile(e.clientX, e.clientY, 20);
+});
+
+// ===============================
+// ANT CLASS
+// ===============================
+class Ant {
+    constructor() {
+        this.x = canvas.width / 2;
+        this.y = canvas.height / 2;
+        this.angle = Math.random() * Math.PI * 2;
+        this.speed = 1.6;
+        this.hasFood = false;
+        this.foodPiece = null;
+    }
+
+    update() {
+        if (this.hasFood) this.returnToNest();
+        else this.scanForFood();
+
+        this.move();
+        this.wrap();
+        this.wallCollision(); // fixed + sealed
+
+        if (!this.hasFood) this.pickFood();
+        else this.dropFood();
+
+        this.followPheromone();
+        this.dropPheromone();
+    }
+
+    move() {
+        this.x += Math.cos(this.angle) * this.speed;
+        this.y += Math.sin(this.angle) * this.speed;
+    }
+
+    wrap() {
+        if (this.x < 0) this.x = canvas.width;
+        if (this.x > canvas.width) this.x = 0;
+        if (this.y < 0) this.y = canvas.height;
+        if (this.y > canvas.height) this.y = 0;
+    }
+
+    // ======================================================
+    // SOLID WALL COLLISION — ants CANNOT pass anymore
+    // ======================================================
+    wallCollision() {
+        for (let w of walls) {
+            const dx = this.x - w.cx;
+            const dy = this.y - w.cy;
+            let dist = Math.sqrt(dx * dx + dy * dy);
+            let ang = Math.atan2(dy, dx);
+
+            // --- Seal endpoints to prevent leaking ---
+            const PAD = 0.25; // 15 degrees extra on each side
+            const start = w.start - PAD;
+            const end = w.end + PAD;
+
+            if (ang < start || ang > end) continue;
+
+            // inner/outer bounds
+            const half = w.thickness / 2;
+            const inner = w.radius - half;
+            const outer = w.radius + half;
+
+            // Inside forbidden band?
+            if (dist > inner && dist < outer) {
+
+                // Push ant to closest wall boundary
+                if (dist - inner < outer - dist) dist = inner - 1;
+                else dist = outer + 1;
+
+                // reposition ant
+                this.x = w.cx + Math.cos(ang) * dist;
+                this.y = w.cy + Math.sin(ang) * dist;
+
+                // Force tangent movement
+                this.angle = ang + Math.PI / 2;
+            }
+        }
+    }
+
+    // ======================================================
+    // FOOD LOGIC
+    // ======================================================
+    scanForFood() {
+        let best = null, dist2 = 999999;
+        for (let f of foods) {
+            const dx = f.x - this.x;
+            const dy = f.y - this.y;
+            const d = dx*dx + dy*dy;
+            if (d < 80*80 && d < dist2) {
+                dist2 = d;
+                best = f;
+            }
+        }
+
+        if (best) this.angle = Math.atan2(best.y - this.y, best.x - this.x);
+    }
+
+    pickFood() {
+        for (let f of foods) {
+            const dx = f.x - this.x;
+            const dy = f.y - this.y;
+            if (dx*dx + dy*dy < 10*10) {
+                this.hasFood = true;
+                this.foodPiece = f;
+                foods.splice(foods.indexOf(f), 1);
+                return;
+            }
+        }
+    }
+
+    returnToNest() {
+        this.angle = Math.atan2(canvas.height/2 - this.y, canvas.width/2 - this.x);
+    }
+
+    dropFood() {
+        const dx = this.x - canvas.width / 2;
+        const dy = this.y - canvas.height / 2;
+        if (dx*dx + dy*dy < 20*20) {
+            this.hasFood = false;
+            this.foodPiece = null;
+        }
+    }
+
+    // ======================================================
+    // PHEROMONE BEHAVIOR
+    // ======================================================
+    followPheromone() {
+        const ahead = this.sense(0);
+        const left  = this.sense(0.5);
+        const right = this.sense(-0.5);
+
+        if (left > ahead && left > right) this.angle += 0.25;
+        else if (right > ahead && right > left) this.angle -= 0.25;
+        else if (Math.random() < 0.02) this.angle += (Math.random() - 0.5) * 0.6;
+    }
+
+    sense(offset) {
+        const sx = this.x + Math.cos(this.angle + offset) * 15;
+        const sy = this.y + Math.sin(this.angle + offset) * 15;
+
+        const cx = Math.floor(sx / gridSize);
+        const cy = Math.floor(sy / gridSize);
+
+        return (pheromone[cx] && pheromone[cx][cy]) || 0;
+    }
+
+    dropPheromone() {
+        const cx = Math.floor(this.x / gridSize);
+        const cy = Math.floor(this.y / gridSize);
+        if (pheromone[cx] && pheromone[cx][cy] !== undefined)
+            pheromone[cx][cy] += this.hasFood ? 3 : 0.4;
+    }
+
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        ctx.fillStyle = this.hasFood ? "#ff4500" : "#ff7b00";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 4, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // carried sugar grain
+        if (this.foodPiece) {
+            ctx.fillStyle = "#fff";
+            ctx.beginPath();
+            ctx.arc(-6, 0, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+}
+
+// ===============================
+// INIT ANTS
+// ===============================
+for (let i = 0; i < ANT_COUNT; i++) ants.push(new Ant());
+
+// ===============================
+// DRAW HELPERS
+// ===============================
+function drawFood(f) {
+    ctx.beginPath();
+    ctx.fillStyle = f.color;
+    ctx.arc(f.x, f.y, f.size, 0, Math.PI*2);
+    ctx.fill();
+}
+
+function evaporate() {
+    for (let x = 0; x < cols; x++)
+        for (let y = 0; y < rows; y++)
+            pheromone[x][y] *= 0.96;
+}
+
+function drawPhero() {
+    for (let x = 0; x < cols; x++)
+        for (let y = 0; y < rows; y++) {
+            const p = pheromone[x][y];
+            if (p > 0.3) {
+                ctx.fillStyle = `rgba(255,120,20,${p/40})`;
+                ctx.fillRect(x * gridSize, y * gridSize, gridSize, gridSize);
+            }
+        }
+}
+
+function drawWalls() {
+    walls.forEach(w => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.lineWidth = w.thickness;
+        ctx.strokeStyle = w.color;
+        ctx.shadowBlur = 0;   // NO GLOW
+        ctx.arc(w.cx, w.cy, w.radius, w.start, w.end);
+        ctx.stroke();
+        ctx.restore();
+    });
+}
+
+// ===============================
+// MAIN LOOP
+// ===============================
+function animate() {
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    evaporate();
+    drawPhero();
+    drawWalls();
+    foods.forEach(drawFood);
+    ants.forEach(a => { a.update(); a.draw(); });
+
+    requestAnimationFrame(animate);
+}
+
+animate();
+
+</script>
+</body>
+</html>
+
+
+
+

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Weather Globe With Legend</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    body { margin: 0; overflow: hidden; background: black; }
+    canvas { display: block; }
+
+    /* Legend styling */
+    #legend {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 12px 14px;
+      border-radius: 8px;
+      color: white;
+      font-family: monospace;
+      font-size: 14px;
+      backdrop-filter: blur(4px);
+    }
+    .entry {
+      display: flex;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .colorBox {
+      width: 16px;
+      height: 16px;
+      margin-right: 8px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- WEATHER LEGEND -->
+<div id="legend">
+  <div class="entry"><div class="colorBox" id="clearBox"></div> CLEAR (Cyan)</div>
+  <div class="entry"><div class="colorBox" id="rainBox"></div> RAIN (Blue)</div>
+  <div class="entry"><div class="colorBox" id="stormBox"></div> STORM (Magenta)</div>
+  <div class="entry"><div class="colorBox" id="windBox"></div> WIND (Green)</div>
+  <div class="entry"><div class="colorBox" id="heatBox"></div> HEAT (Orange)</div>
+</div>
+
+<script>
+let globePoints = [];
+let radius;
+
+let regions = [];
+let lastChange = 0;
+let interval = 6000;
+
+// WEATHER COLORS
+let CLEAR, RAIN, STORM, WIND, HEAT;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight, WEBGL);
+
+  colorMode(HSB, 360, 100, 100, 100);
+  noStroke();
+
+  radius = min(width, height) * 0.42;
+
+  // define neon weather colors
+  CLEAR = color(185, 100, 100);
+  RAIN  = color(220, 100, 90);
+  STORM = color(300, 100, 100);
+  WIND  = color(140, 100, 100);
+  HEAT  = color(20, 100, 100);
+
+  // update legend colors
+  document.getElementById("clearBox").style.background = hsbaToCss(CLEAR);
+  document.getElementById("rainBox").style.background  = hsbaToCss(RAIN);
+  document.getElementById("stormBox").style.background = hsbaToCss(STORM);
+  document.getElementById("windBox").style.background  = hsbaToCss(WIND);
+  document.getElementById("heatBox").style.background  = hsbaToCss(HEAT);
+
+  // climate regions by latitude
+  regions = [
+    { name: "NORTH_POLE", min: 0.0,   max: 0.35, color: CLEAR },
+    { name: "COLD_BAND",  min: 0.35,  max: 0.65, color: WIND },
+    { name: "TEMPERATE",  min: 0.65,  max: 1.15, color: RAIN },
+    { name: "TROPICS",    min: 1.15,  max: 1.75, color: HEAT },
+    { name: "SOUTH_TEMP", min: 1.75,  max: 2.45, color: RAIN },
+    { name: "SOUTH_POLE", min: 2.45,  max: PI,   color: CLEAR }
+  ];
+
+  // points on sphere
+  for (let i = 0; i < 4000; i++) {
+    let p = randomPointOnSphere();
+    globePoints.push({
+      pos: p.copy().mult(radius),
+      phi: p.phi,
+      color: null
+    });
+  }
+
+  assignRegionColors();
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight, WEBGL);
+  radius = min(width, height) * 0.42;
+}
+
+function draw() {
+  background(0);
+
+  rotateY(millis() * 0.0004);
+
+  strokeWeight(2);
+
+  for (let p of globePoints) {
+    let fade = map(p.pos.z, -radius, radius, 20, 100);
+    let c = p.color;
+    stroke(hue(c), saturation(c), brightness(c), fade);
+    point(p.pos.x, p.pos.y, p.pos.z);
+  }
+
+  if (millis() - lastChange > interval) {
+    assignRegionColors();
+    lastChange = millis();
+  }
+}
+
+// Assign same weather color to region band
+function assignRegionColors() {
+  let palette = [CLEAR, RAIN, STORM, WIND, HEAT];
+
+  for (let r of regions) {
+    r.color = random(palette);
+  }
+
+  for (let p of globePoints) {
+    for (let r of regions) {
+      if (p.phi >= r.min && p.phi < r.max) {
+        p.color = r.color;
+        break;
+      }
+    }
+  }
+}
+
+// random point on sphere
+function randomPointOnSphere() {
+  let u = random();
+  let v = random();
+
+  let theta = TWO_PI * u;
+  let phi = acos(2 * v - 1);
+
+  let x = sin(phi) * cos(theta);
+  let y = sin(phi) * sin(theta);
+  let z = cos(phi);
+
+  let v3 = createVector(x, y, z);
+  v3.phi = phi;
+  return v3;
+}
+
+// Convert HSB to CSS rgba()
+function hsbaToCss(c) {
+  return `hsla(${floor(hue(c))}deg,${floor(saturation(c))}%,${floor(brightness(c))}%,1)`;
+}
+</script>
+
+</body>
+</html>
+
+
+
+
+
