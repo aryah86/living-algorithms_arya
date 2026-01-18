@@ -20,10 +20,11 @@ const ctx = canvas.getContext("2d");
 canvas.width = innerWidth;
 canvas.height = innerHeight;
 
-// Resize handler
 addEventListener("resize", () => {
     canvas.width = innerWidth;
     canvas.height = innerHeight;
+    walls.length = 0;
+    createWalls();
 });
 
 // ===============================
@@ -38,19 +39,19 @@ const gridSize = 10;
 const cols = Math.ceil(canvas.width / gridSize);
 const rows = Math.ceil(canvas.height / gridSize);
 
-// Build pheromone grid
 for (let x = 0; x < cols; x++) {
     pheromone[x] = [];
     for (let y = 0; y < rows; y++) pheromone[x][y] = 0;
 }
 
 // ===============================
-// CURVED WALLS — Pale Yellow
+// CURVED WALLS — converted to collision segments
 // ===============================
 const walls = [];
+const wallSegments = []; // For collision detection
 
 function createWalls() {
-    const Y = "#e8e3a3";  // pale grayish-yellow
+    const Y = "#e8e3a3";
 
     walls.push({
         cx: canvas.width * 0.35,
@@ -91,12 +92,91 @@ function createWalls() {
         end: 0.9 * Math.PI,
         color: Y
     });
+
+    // Build collision segments from walls
+    buildWallSegments();
+}
+
+// Convert curved walls into line segments for collision
+function buildWallSegments() {
+    wallSegments.length = 0;
+    
+    for (let w of walls) {
+        const steps = 40; // More segments = smoother collision
+        const angleStep = (w.end - w.start) / steps;
+        const innerR = w.radius - w.thickness / 2;
+        const outerR = w.radius + w.thickness / 2;
+        
+        for (let i = 0; i < steps; i++) {
+            const a1 = w.start + i * angleStep;
+            const a2 = w.start + (i + 1) * angleStep;
+            
+            // Inner arc segment
+            wallSegments.push({
+                x1: w.cx + Math.cos(a1) * innerR,
+                y1: w.cy + Math.sin(a1) * innerR,
+                x2: w.cx + Math.cos(a2) * innerR,
+                y2: w.cy + Math.sin(a2) * innerR
+            });
+            
+            // Outer arc segment
+            wallSegments.push({
+                x1: w.cx + Math.cos(a1) * outerR,
+                y1: w.cy + Math.sin(a1) * outerR,
+                x2: w.cx + Math.cos(a2) * outerR,
+                y2: w.cy + Math.sin(a2) * outerR
+            });
+        }
+        
+        // End caps (close off the arc ends)
+        const startAngle = w.start;
+        const endAngle = w.end;
+        
+        // Start cap
+        wallSegments.push({
+            x1: w.cx + Math.cos(startAngle) * innerR,
+            y1: w.cy + Math.sin(startAngle) * innerR,
+            x2: w.cx + Math.cos(startAngle) * outerR,
+            y2: w.cy + Math.sin(startAngle) * outerR
+        });
+        
+        // End cap
+        wallSegments.push({
+            x1: w.cx + Math.cos(endAngle) * innerR,
+            y1: w.cy + Math.sin(endAngle) * innerR,
+            x2: w.cx + Math.cos(endAngle) * outerR,
+            y2: w.cy + Math.sin(endAngle) * outerR
+        });
+    }
 }
 
 createWalls();
 
 // ===============================
-// FOOD (WHITE SUGAR)
+// COLLISION HELPER: Point to line segment distance
+// ===============================
+function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    
+    if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+    
+    let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    
+    const nearX = x1 + t * dx;
+    const nearY = y1 + t * dy;
+    
+    return {
+        dist: Math.hypot(px - nearX, py - nearY),
+        nearX,
+        nearY
+    };
+}
+
+// ===============================
+// FOOD
 // ===============================
 function spawnFoodPile(x, y, count = 25) {
     for (let i = 0; i < count; i++) {
@@ -109,42 +189,13 @@ function spawnFoodPile(x, y, count = 25) {
     }
 }
 
-// initial food piles
 spawnFoodPile(canvas.width * 0.15, canvas.height * 0.25);
 spawnFoodPile(canvas.width * 0.78, canvas.height * 0.55);
 spawnFoodPile(canvas.width * 0.45, canvas.height * 0.85);
 
-// click to add food
 canvas.addEventListener("click", e => {
     spawnFoodPile(e.clientX, e.clientY, 20);
 });
-
-// ===============================
-// HELPER: Normalize angle to [-PI, PI]
-// ===============================
-function normalizeAngle(a) {
-    while (a > Math.PI) a -= Math.PI * 2;
-    while (a < -Math.PI) a += Math.PI * 2;
-    return a;
-}
-
-// ===============================
-// HELPER: Check if angle is within arc range
-// ===============================
-function isAngleInArc(angle, start, end) {
-    // Normalize all angles to [-PI, PI]
-    angle = normalizeAngle(angle);
-    start = normalizeAngle(start);
-    end = normalizeAngle(end);
-    
-    // Handle the case where the arc crosses the -PI/PI boundary
-    if (start <= end) {
-        return angle >= start && angle <= end;
-    } else {
-        // Arc wraps around, so angle is in range if it's >= start OR <= end
-        return angle >= start || angle <= end;
-    }
-}
 
 // ===============================
 // ANT CLASS
@@ -157,15 +208,22 @@ class Ant {
         this.speed = 1.6;
         this.hasFood = false;
         this.foodPiece = null;
+        this.radius = 4; // Ant collision radius
     }
 
     update() {
         if (this.hasFood) this.returnToNest();
         else this.scanForFood();
 
+        // Store previous position
+        const prevX = this.x;
+        const prevY = this.y;
+
         this.move();
         this.wrap();
-        this.wallCollision();
+        
+        // Check wall collision and resolve
+        this.wallCollision(prevX, prevY);
 
         if (!this.hasFood) this.pickFood();
         else this.dropFood();
@@ -187,62 +245,49 @@ class Ant {
     }
 
     // ======================================================
-    // FIXED SOLID WALL COLLISION
+    // NEW WALL COLLISION - segment based
     // ======================================================
-    wallCollision() {
-        for (let w of walls) {
-            const dx = this.x - w.cx;
-            const dy = this.y - w.cy;
-            let dist = Math.sqrt(dx * dx + dy * dy);
-            let ang = Math.atan2(dy, dx);
-
-            // Expand the arc slightly to seal endpoints
-            const PAD = 0.15;
-            const arcStart = w.start - PAD;
-            const arcEnd = w.end + PAD;
-
-            // Check if ant's angle from wall center is within the arc
-            if (!isAngleInArc(ang, arcStart, arcEnd)) continue;
-
-            // inner/outer bounds
-            const half = w.thickness / 2;
-            const inner = w.radius - half;
-            const outer = w.radius + half;
-
-            // Inside forbidden band?
-            if (dist > inner && dist < outer) {
-                // Push ant to closest wall boundary
-                if (dist - inner < outer - dist) {
-                    dist = inner - 2;
-                } else {
-                    dist = outer + 2;
-                }
-
-                // Reposition ant
-                this.x = w.cx + Math.cos(ang) * dist;
-                this.y = w.cy + Math.sin(ang) * dist;
-
-                // Reflect/bounce: reverse and add tangent deflection
-                this.angle = ang + Math.PI / 2 + (Math.random() - 0.5) * 0.5;
+    wallCollision(prevX, prevY) {
+        const collisionDist = this.radius + 2;
+        
+        for (let seg of wallSegments) {
+            const result = pointToSegmentDistance(
+                this.x, this.y,
+                seg.x1, seg.y1, seg.x2, seg.y2
+            );
+            
+            if (result.dist < collisionDist) {
+                // Push ant away from the segment
+                const pushDist = collisionDist - result.dist + 1;
+                const dx = this.x - result.nearX;
+                const dy = this.y - result.nearY;
+                const len = Math.hypot(dx, dy) || 1;
+                
+                this.x += (dx / len) * pushDist;
+                this.y += (dy / len) * pushDist;
+                
+                // Reflect angle off the wall
+                const segDx = seg.x2 - seg.x1;
+                const segDy = seg.y2 - seg.y1;
+                const wallAngle = Math.atan2(segDy, segDx);
+                
+                // Reflect: new angle = 2 * wallAngle - old angle
+                this.angle = 2 * wallAngle - this.angle + (Math.random() - 0.5) * 0.3;
             }
         }
     }
 
-    // ======================================================
-    // FOOD LOGIC
-    // ======================================================
     scanForFood() {
         let best = null, dist2 = 999999;
         for (let f of foods) {
             const dx = f.x - this.x;
             const dy = f.y - this.y;
-            const d = dx*dx + dy*dy;
-            if (d < 80*80 && d < dist2) {
+            const d = dx * dx + dy * dy;
+            if (d < 80 * 80 && d < dist2) {
                 dist2 = d;
                 best = f;
             }
         }
-
         if (best) this.angle = Math.atan2(best.y - this.y, best.x - this.x);
     }
 
@@ -250,7 +295,7 @@ class Ant {
         for (let f of foods) {
             const dx = f.x - this.x;
             const dy = f.y - this.y;
-            if (dx*dx + dy*dy < 10*10) {
+            if (dx * dx + dy * dy < 10 * 10) {
                 this.hasFood = true;
                 this.foodPiece = f;
                 foods.splice(foods.indexOf(f), 1);
@@ -260,24 +305,21 @@ class Ant {
     }
 
     returnToNest() {
-        this.angle = Math.atan2(canvas.height/2 - this.y, canvas.width/2 - this.x);
+        this.angle = Math.atan2(canvas.height / 2 - this.y, canvas.width / 2 - this.x);
     }
 
     dropFood() {
         const dx = this.x - canvas.width / 2;
         const dy = this.y - canvas.height / 2;
-        if (dx*dx + dy*dy < 20*20) {
+        if (dx * dx + dy * dy < 20 * 20) {
             this.hasFood = false;
             this.foodPiece = null;
         }
     }
 
-    // ======================================================
-    // PHEROMONE BEHAVIOR
-    // ======================================================
     followPheromone() {
         const ahead = this.sense(0);
-        const left  = this.sense(0.5);
+        const left = this.sense(0.5);
         const right = this.sense(-0.5);
 
         if (left > ahead && left > right) this.angle += 0.25;
@@ -288,10 +330,8 @@ class Ant {
     sense(offset) {
         const sx = this.x + Math.cos(this.angle + offset) * 15;
         const sy = this.y + Math.sin(this.angle + offset) * 15;
-
         const cx = Math.floor(sx / gridSize);
         const cy = Math.floor(sy / gridSize);
-
         return (pheromone[cx] && pheromone[cx][cy]) || 0;
     }
 
@@ -312,7 +352,6 @@ class Ant {
         ctx.ellipse(0, 0, 4, 3, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // carried sugar grain
         if (this.foodPiece) {
             ctx.fillStyle = "#fff";
             ctx.beginPath();
@@ -335,7 +374,7 @@ for (let i = 0; i < ANT_COUNT; i++) ants.push(new Ant());
 function drawFood(f) {
     ctx.beginPath();
     ctx.fillStyle = f.color;
-    ctx.arc(f.x, f.y, f.size, 0, Math.PI*2);
+    ctx.arc(f.x, f.y, f.size, 0, Math.PI * 2);
     ctx.fill();
 }
 
@@ -350,7 +389,7 @@ function drawPhero() {
         for (let y = 0; y < rows; y++) {
             const p = pheromone[x][y];
             if (p > 0.3) {
-                ctx.fillStyle = `rgba(255,120,20,${p/40})`;
+                ctx.fillStyle = `rgba(255,120,20,${p / 40})`;
                 ctx.fillRect(x * gridSize, y * gridSize, gridSize, gridSize);
             }
         }
@@ -362,7 +401,7 @@ function drawWalls() {
         ctx.beginPath();
         ctx.lineWidth = w.thickness;
         ctx.strokeStyle = w.color;
-        ctx.shadowBlur = 0;
+        ctx.lineCap = "round"; // Round end caps
         ctx.arc(w.cx, w.cy, w.radius, w.start, w.end);
         ctx.stroke();
         ctx.restore();
