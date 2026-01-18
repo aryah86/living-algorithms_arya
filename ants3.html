@@ -120,6 +120,33 @@ canvas.addEventListener("click", e => {
 });
 
 // ===============================
+// HELPER: Normalize angle to [-PI, PI]
+// ===============================
+function normalizeAngle(a) {
+    while (a > Math.PI) a -= Math.PI * 2;
+    while (a < -Math.PI) a += Math.PI * 2;
+    return a;
+}
+
+// ===============================
+// HELPER: Check if angle is within arc range
+// ===============================
+function isAngleInArc(angle, start, end) {
+    // Normalize all angles to [-PI, PI]
+    angle = normalizeAngle(angle);
+    start = normalizeAngle(start);
+    end = normalizeAngle(end);
+    
+    // Handle the case where the arc crosses the -PI/PI boundary
+    if (start <= end) {
+        return angle >= start && angle <= end;
+    } else {
+        // Arc wraps around, so angle is in range if it's >= start OR <= end
+        return angle >= start || angle <= end;
+    }
+}
+
+// ===============================
 // ANT CLASS
 // ===============================
 class Ant {
@@ -138,7 +165,7 @@ class Ant {
 
         this.move();
         this.wrap();
-        this.wallCollision(); // fixed + sealed
+        this.wallCollision();
 
         if (!this.hasFood) this.pickFood();
         else this.dropFood();
@@ -160,7 +187,7 @@ class Ant {
     }
 
     // ======================================================
-    // SOLID WALL COLLISION — ants CANNOT pass anymore
+    // FIXED SOLID WALL COLLISION
     // ======================================================
     wallCollision() {
         for (let w of walls) {
@@ -169,12 +196,13 @@ class Ant {
             let dist = Math.sqrt(dx * dx + dy * dy);
             let ang = Math.atan2(dy, dx);
 
-            // --- Seal endpoints to prevent leaking ---
-            const PAD = 0.25; // 15 degrees extra on each side
-            const start = w.start - PAD;
-            const end = w.end + PAD;
+            // Expand the arc slightly to seal endpoints
+            const PAD = 0.15;
+            const arcStart = w.start - PAD;
+            const arcEnd = w.end + PAD;
 
-            if (ang < start || ang > end) continue;
+            // Check if ant's angle from wall center is within the arc
+            if (!isAngleInArc(ang, arcStart, arcEnd)) continue;
 
             // inner/outer bounds
             const half = w.thickness / 2;
@@ -183,17 +211,19 @@ class Ant {
 
             // Inside forbidden band?
             if (dist > inner && dist < outer) {
-
                 // Push ant to closest wall boundary
-                if (dist - inner < outer - dist) dist = inner - 1;
-                else dist = outer + 1;
+                if (dist - inner < outer - dist) {
+                    dist = inner - 2;
+                } else {
+                    dist = outer + 2;
+                }
 
-                // reposition ant
+                // Reposition ant
                 this.x = w.cx + Math.cos(ang) * dist;
                 this.y = w.cy + Math.sin(ang) * dist;
 
-                // Force tangent movement
-                this.angle = ang + Math.PI / 2;
+                // Reflect/bounce: reverse and add tangent deflection
+                this.angle = ang + Math.PI / 2 + (Math.random() - 0.5) * 0.5;
             }
         }
     }
@@ -332,7 +362,7 @@ function drawWalls() {
         ctx.beginPath();
         ctx.lineWidth = w.thickness;
         ctx.strokeStyle = w.color;
-        ctx.shadowBlur = 0;   // NO GLOW
+        ctx.shadowBlur = 0;
         ctx.arc(w.cx, w.cy, w.radius, w.start, w.end);
         ctx.stroke();
         ctx.restore();
